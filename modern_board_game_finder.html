@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Board Game Finder - AI-Powered Recommendations</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        },
+                        indigo: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            200: '#c7d2fe',
+                            300: '#a5b4fc',
+                            400: '#818cf8',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            800: '#3730a3',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #eff6ff 0%, #e0e7ff 50%, #f3e8ff 100%);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4f46e5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-dots {
+            display: inline-block;
+        }
+        .loading-dots::after {
+            content: '';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
+        }
+        .loading-card {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Search Page -->
+    <div id="searchPage" class="min-h-screen gradient-bg flex items-center justify-center p-4">
+        <div class="w-full max-w-2xl space-y-8">
+            <div class="text-center space-y-4">
+                <div class="flex items-center justify-center gap-2 mb-4">
+                    <svg class="h-8 w-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+                    </svg>
+                    <h1 class="text-4xl text-indigo-900 font-bold">Board Game Finder</h1>
+                </div>
+                <p class="text-gray-600 text-lg">
+                    Describe what kind of board game you're looking for, and we'll help you find the perfect match!
+                </p>
+            </div>
+
+            <div class="bg-white rounded-xl border-2 border-indigo-200 shadow-lg">
+                <div class="p-6">
+                    <form id="searchForm" class="space-y-4">
+                        <div class="relative">
+                            <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                            <input
+                                id="searchInput"
+                                type="text"
+                                placeholder="e.g., 'I want a strategy game for 3-4 players that takes about an hour'"
+                                class="w-full pl-10 pr-4 py-3 text-base border-2 border-indigo-100 rounded-lg focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            />
+                        </div>
+                        <button 
+                            type="submit" 
+                            id="searchButton"
+                            class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled
+                        >
+                            <span id="buttonText">Find My Perfect Game</span>
+                            <span id="loadingSpinner" class="loading-spinner hidden ml-2"></span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <h3 class="text-center text-gray-600">Try these examples:</h3>
+                <div class="grid gap-2">
+                    <button
+                        onclick="setSearchQuery('Games like Monopoly but faster')"
+                        class="text-left p-3 rounded-lg bg-white/60 hover:bg-white/80 border border-indigo-100 hover:border-indigo-200 transition-colors"
+                    >
+                        <span class="text-indigo-700">"Games like Monopoly but faster"</span>
+                    </button>
+                    <button
+                        onclick="setSearchQuery('Strategic games for 2 players')"
+                        class="text-left p-3 rounded-lg bg-white/60 hover:bg-white/80 border border-indigo-100 hover:border-indigo-200 transition-colors"
+                    >
+                        <span class="text-indigo-700">"Strategic games for 2 players"</span>
+                    </button>
+                    <button
+                        onclick="setSearchQuery('Family games that take under 30 minutes')"
+                        class="text-left p-3 rounded-lg bg-white/60 hover:bg-white/80 border border-indigo-100 hover:border-indigo-200 transition-colors"
+                    >
+                        <span class="text-indigo-700">"Family games that take under 30 minutes"</span>
+                    </button>
+                    <button
+                        onclick="setSearchQuery('Cooperative games for beginners')"
+                        class="text-left p-3 rounded-lg bg-white/60 hover:bg-white/80 border border-indigo-100 hover:border-indigo-200 transition-colors"
+                    >
+                        <span class="text-indigo-700">"Cooperative games for beginners"</span>
+                    </button>
+                    <button
+                        onclick="setSearchQuery('Party games for large groups')"
+                        class="text-left p-3 rounded-lg bg-white/60 hover:bg-white/80 border border-indigo-100 hover:border-indigo-200 transition-colors"
+                    >
+                        <span class="text-indigo-700">"Party games for large groups"</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Page -->
+    <div id="resultsPage" class="min-h-screen bg-gray-50 p-4 hidden">
+        <div class="max-w-7xl mx-auto space-y-6">
+            <div class="flex items-center gap-4 py-4">
+                <button 
+                    onclick="showSearchPage()"
+                    class="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    Back to Search
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div class="flex items-center gap-3">
+                    <svg class="h-6 w-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    <h1>Results for: <span class="text-indigo-600" id="searchQuery">""</span></h1>
+                </div>
+                <p class="text-gray-600" id="resultsCount">
+                    Found 0 board games that match your criteria
+                </p>
+            </div>
+
+            <div id="gamesContainer" class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <!-- Games will be dynamically inserted here -->
+            </div>
+
+            <!-- Loading State -->
+            <div id="loadingState" class="hidden">
+                <div class="text-center mb-8">
+                    <div class="inline-flex items-center gap-3 px-6 py-3 bg-indigo-50 rounded-full">
+                        <div class="loading-spinner"></div>
+                        <span class="text-indigo-700 font-medium">Searching for your perfect games<span class="loading-dots"></span></span>
+                    </div>
+                    <div class="mt-4 text-sm text-gray-500">
+                        <div class="flex items-center justify-center gap-2">
+                            <div class="w-2 h-2 bg-indigo-400 rounded-full pulse"></div>
+                            <div class="w-2 h-2 bg-indigo-400 rounded-full pulse" style="animation-delay: 0.2s;"></div>
+                            <div class="w-2 h-2 bg-indigo-400 rounded-full pulse" style="animation-delay: 0.4s;"></div>
+                        </div>
+                        <p class="mt-2">This may take a few moments...</p>
+                    </div>
+                </div>
+                <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <!-- Loading skeleton cards -->
+                    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                        <div class="aspect-video w-full loading-card"></div>
+                        <div class="p-6 space-y-4">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="h-6 bg-gray-200 rounded w-3/4 loading-card"></div>
+                                <div class="h-6 bg-gray-200 rounded w-16 loading-card"></div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="h-4 bg-gray-200 rounded w-full loading-card"></div>
+                                <div class="h-4 bg-gray-200 rounded w-5/6 loading-card"></div>
+                                <div class="h-4 bg-gray-200 rounded w-4/6 loading-card"></div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <div class="h-4 bg-gray-200 rounded w-16 loading-card"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-12 loading-card"></div>
+                                </div>
+                                <div class="flex justify-between">
+                                    <div class="h-4 bg-gray-200 rounded w-20 loading-card"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-16 loading-card"></div>
+                                </div>
+                                <div class="flex justify-between">
+                                    <div class="h-4 bg-gray-200 rounded w-12 loading-card"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-8 loading-card"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                        <div class="aspect-video w-full loading-card"></div>
+                        <div class="p-6 space-y-4">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="h-6 bg-gray-200 rounded w-3/4 loading-card"></div>
+                                <div class="h-6 bg-gray-200 rounded w-16 loading-card"></div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="h-4 bg-gray-200 rounded w-full loading-card"></div>
+                                <div class="h-4 bg-gray-200 rounded w-5/6 loading-card"></div>
+                                <div class="h-4 bg-gray-200 rounded w-4/6 loading-card"></div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <div class="h-4 bg-gray-200 rounded w-16 loading-card"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-12 loading-card"></div>
+                                </div>
+                                <div class="flex justify-between">
+                                    <div class="h-4 bg-gray-200 rounded w-20 loading-card"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-16 loading-card"></div>
+                                </div>
+                                <div class="flex justify-between">
+                                    <div class="h-4 bg-gray-200 rounded w-12 loading-card"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-8 loading-card"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                        <div class="aspect-video w-full loading-card"></div>
+                        <div class="p-6 space-y-4">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="h-6 bg-gray-200 rounded w-3/4 loading-card"></div>
+                                <div class="h-6 bg-gray-200 rounded w-16 loading-card"></div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="h-4 bg-gray-200 rounded w-full loading-card"></div>
+                                <div class="h-4 bg-gray-200 rounded w-5/6 loading-card"></div>
+                                <div class="h-4 bg-gray-200 rounded w-4/6 loading-card"></div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <div class="h-4 bg-gray-200 rounded w-16 loading-card"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-12 loading-card"></div>
+                                </div>
+                                <div class="flex justify-between">
+                                    <div class="h-4 bg-gray-200 rounded w-20 loading-card"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-16 loading-card"></div>
+                                </div>
+                                <div class="flex justify-between">
+                                    <div class="h-4 bg-gray-200 rounded w-12 loading-card"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-8 loading-card"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                        <div class="aspect-video w-full loading-card"></div>
+                        <div class="p-6 space-y-4">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="h-6 bg-gray-200 rounded w-3/4 loading-card"></div>
+                                <div class="h-6 bg-gray-200 rounded w-16 loading-card"></div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="h-4 bg-gray-200 rounded w-full loading-card"></div>
+                                <div class="h-4 bg-gray-200 rounded w-5/6 loading-card"></div>
+                                <div class="h-4 bg-gray-200 rounded w-4/6 loading-card"></div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <div class="h-4 bg-gray-200 rounded w-16 loading-card"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-12 loading-card"></div>
+                                </div>
+                                <div class="flex justify-between">
+                                    <div class="h-4 bg-gray-200 rounded w-20 loading-card"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-16 loading-card"></div>
+                                </div>
+                                <div class="flex justify-between">
+                                    <div class="h-4 bg-gray-200 rounded w-12 loading-card"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-8 loading-card"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="noResults" class="text-center py-12 hidden">
+                <svg class="h-12 w-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No games found</h3>
+                <p class="text-gray-600 mb-4">
+                    Try adjusting your search criteria or browse our recommendations.
+                </p>
+                <button 
+                    onclick="showSearchPage()"
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                    Try Another Search
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Configuration
+        const API_URL = 'http://localhost:5000';
+        const FLOW_ID = '50904071-2e67-4fa3-9e34-b3ef50368a94';
+
+        // DOM Elements
+        const searchPage = document.getElementById('searchPage');
+        const resultsPage = document.getElementById('resultsPage');
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        const buttonText = document.getElementById('buttonText');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const searchQuery = document.getElementById('searchQuery');
+        const resultsCount = document.getElementById('resultsCount');
+        const gamesContainer = document.getElementById('gamesContainer');
+        const loadingState = document.getElementById('loadingState');
+        const noResults = document.getElementById('noResults');
+
+        // Initialize
+        searchInput.addEventListener('input', () => {
+            searchButton.disabled = !searchInput.value.trim();
+        });
+
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (searchInput.value.trim()) {
+                    performSearch();
+                }
+            }
+        });
+
+        document.getElementById('searchForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (searchInput.value.trim()) {
+                performSearch();
+            }
+        });
+
+        function setSearchQuery(query) {
+            searchInput.value = query;
+            searchButton.disabled = false;
+        }
+
+        function showSearchPage() {
+            searchPage.classList.remove('hidden');
+            resultsPage.classList.add('hidden');
+            searchInput.value = '';
+            searchButton.disabled = true;
+        }
+
+        function showResultsPage() {
+            searchPage.classList.add('hidden');
+            resultsPage.classList.remove('hidden');
+        }
+
+        function setLoading(loading) {
+            if (loading) {
+                searchButton.disabled = true;
+                buttonText.textContent = 'Searching...';
+                loadingSpinner.classList.remove('hidden');
+                // Show loading state in results page
+                loadingState.classList.remove('hidden');
+                gamesContainer.innerHTML = '';
+                noResults.classList.add('hidden');
+            } else {
+                searchButton.disabled = false;
+                buttonText.textContent = 'Find My Perfect Game';
+                loadingSpinner.classList.add('hidden');
+                // Hide loading state
+                loadingState.classList.add('hidden');
+            }
+        }
+
+        // API Integration Functions (from existing frontend)
+        function extractMessageFromLangflowResponse(data) {
+            try {
+                if (data.outputs && data.outputs.length > 0) {
+                    const output = data.outputs[0];
+                    if (output.outputs && output.outputs.length > 0) {
+                        const innerOutput = output.outputs[0];
+                        if (innerOutput.results && innerOutput.results.message) {
+                            const message = innerOutput.results.message;
+                            if (message.data && message.data.text) {
+                                return message.data.text;
+                            } else if (message.text) {
+                                return message.text;
+                            }
+                        }
+                    }
+                }
+                return JSON.stringify(data, null, 2);
+            } catch (e) {
+                console.warn('Could not extract message from Langflow response:', e);
+                return typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+            }
+        }
+
+        function parseGameXFormat(text) {
+            console.log('Parsing Game X format:', text);
+            const games = [];
+            
+            const gameSections = text.split(/(?=Game \d+:)/);
+            console.log('Found game sections:', gameSections.length);
+            
+            for (let i = 0; i < gameSections.length; i++) {
+                let section = gameSections[i].trim();
+                if (!section) continue;
+                
+                const gameMatch = section.match(/Game \d+:\s*([^(]+)\((\d{4})\)/);
+                if (!gameMatch) continue;
+                
+                const gameName = gameMatch[1].trim();
+                const year = gameMatch[2].trim();
+                
+                const gameMatches = [...section.matchAll(/(?=Game \d+:)/g)];
+                if (gameMatches.length > 1) {
+                    section = section.substring(0, gameMatches[1].index);
+                }
+                
+                const game = {
+                    name: gameName,
+                    year: year,
+                    description: '',
+                    details: {},
+                    bggId: null,
+                    bggUrl: null
+                };
+                
+                // Parse game details
+                const bggRankMatch = section.match(/BGG Rank:\s*#?(\d+)/);
+                if (bggRankMatch) {
+                    game.details.bggRank = bggRankMatch[1];
+                }
+                
+                const ratingMatch = section.match(/Rating:\s*([0-9,]+)\/10/);
+                if (ratingMatch) {
+                    game.details.rating = ratingMatch[1].replace(',', '.');
+                }
+                
+                const playersMatch = section.match(/Players:\s*(\d+)-(\d+)/);
+                if (playersMatch) {
+                    game.details.minPlayers = playersMatch[1];
+                    game.details.maxPlayers = playersMatch[2];
+                }
+                
+                const durationMatch = section.match(/Duration:\s*(\d+)\s*minutes/);
+                if (durationMatch) {
+                    game.details.playTime = durationMatch[1];
+                }
+                
+                const ageMatch = section.match(/Age:\s*(\d+)\+/);
+                if (ageMatch) {
+                    game.details.age = ageMatch[1];
+                }
+                
+                const mechanicsMatch = section.match(/Mechanics:\s*([^G]+?)(?=Game \d+:|$)/);
+                if (mechanicsMatch) {
+                    let mechanicsStr = mechanicsMatch[1].trim();
+                    mechanicsStr = mechanicsStr.replace(/\s+Game \d+:.*$/, '');
+                    game.details.mechanics = mechanicsStr.split(',').map(m => m.trim()).filter(m => m);
+                }
+                
+                const bggMatch = section.match(/BoardGameGeek:\s*(https:\/\/boardgamegeek\.com\/boardgame\/\d+)/);
+                if (bggMatch) {
+                    game.bggUrl = bggMatch[1];
+                    const idMatch = bggMatch[1].match(/boardgame\/(\d+)/);
+                    if (idMatch) {
+                        game.bggId = idMatch[1];
+                    }
+                }
+                
+                const descMatch = section.match(/DESCRIPTION:\s*([\s\S]+?)(?=Game \d+:|$)/);
+                if (descMatch) {
+                    let description = descMatch[1].trim();
+                    description = description.replace(/\s+Game \d+:.*$/, '');
+                    description = description.replace(/\\n/g, '\n').replace(/\s+/g, ' ').trim();
+                    game.description = description;
+                }
+                
+                if (!game.bggUrl) {
+                    game.bggUrl = `https://boardgamegeek.com/boardgame/${getBGGIdForGame(gameName)}`;
+                }
+                
+                games.push(game);
+            }
+            
+            return games;
+        }
+
+        function getBGGIdForGame(gameName) {
+            const bggIds = {
+                'Catan': '13',
+                'Carcassonne': '822',
+                'Ticket to Ride': '9209',
+                '7 Wonders': '68448',
+                'Wingspan': '266192',
+                'Azul': '230802',
+                'Splendor': '148228',
+                'Pandemic': '30549',
+                'Gloomhaven': '174430',
+                'Scythe': '169786'
+            };
+            
+            if (bggIds[gameName]) {
+                return bggIds[gameName];
+            }
+            
+            for (const [key, id] of Object.entries(bggIds)) {
+                if (gameName.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(gameName.toLowerCase())) {
+                    return id;
+                }
+            }
+            
+            return `search?q=${encodeURIComponent(gameName)}`;
+        }
+
+        function getComplexityLevel(complexity) {
+            if (!complexity) return 'Medium';
+            const num = parseFloat(complexity);
+            if (num <= 1.5) return 'Easy';
+            if (num <= 3.0) return 'Medium';
+            return 'Hard';
+        }
+
+        function getComplexityColor(complexity) {
+            const level = getComplexityLevel(complexity);
+            switch (level) {
+                case 'Easy': return 'bg-green-100 text-green-800';
+                case 'Medium': return 'bg-yellow-100 text-yellow-800';
+                case 'Hard': return 'bg-red-100 text-red-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        function createGameCard(game, index) {
+            const complexity = getComplexityLevel(game.details.complexity);
+            const complexityColor = getComplexityColor(game.details.complexity);
+            
+            return `
+                <div class="bg-white rounded-xl border border-gray-200 overflow-hidden card-hover fade-in">
+                    <div class="aspect-video w-full overflow-hidden bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
+                        <div class="text-center p-4">
+                            <div class="text-4xl mb-2">🎲</div>
+                            <div class="text-sm text-gray-600">${game.name}</div>
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                            <h3 class="text-lg font-semibold text-gray-900 leading-tight">${game.name}</h3>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full ${complexityColor}">
+                                ${complexity}
+                            </span>
+                        </div>
+                        <p class="text-gray-600 text-sm mb-4 line-clamp-3">${game.description || 'No description available.'}</p>
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-gray-500">Players:</span>
+                                <span class="font-medium">${game.details.minPlayers || '?'}-${game.details.maxPlayers || '?'}</span>
+                            </div>
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-gray-500">Play Time:</span>
+                                <span class="font-medium">${game.details.playTime || '?'} min</span>
+                            </div>
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-gray-500">Age:</span>
+                                <span class="font-medium">${game.details.age || '?'}+</span>
+                            </div>
+                            ${game.details.bggRank ? `
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-gray-500">BGG Rank:</span>
+                                <span class="font-medium">#${game.details.bggRank}</span>
+                            </div>
+                            ` : ''}
+                            ${game.details.mechanics && game.details.mechanics.length > 0 ? `
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-gray-500">Mechanics:</span>
+                                <span class="font-medium text-xs">${game.details.mechanics.slice(0, 2).join(', ')}${game.details.mechanics.length > 2 ? '...' : ''}</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                        ${game.bggUrl ? `
+                        <div class="mt-4 pt-4 border-t border-gray-100">
+                            <a 
+                                href="${game.bggUrl}" 
+                                target="_blank" 
+                                class="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                            >
+                                View on BoardGameGeek
+                                <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                </svg>
+                            </a>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function performSearch() {
+            const query = searchInput.value.trim();
+            if (!query) return;
+
+            setLoading(true);
+            showResultsPage();
+            searchQuery.textContent = `"${query}"`;
+
+            // Set up timeout for long searches
+            const timeoutId = setTimeout(() => {
+                if (loadingState && !loadingState.classList.contains('hidden')) {
+                    // Update loading message for long searches
+                    const loadingText = document.querySelector('#loadingState .text-indigo-700');
+                    if (loadingText) {
+                        loadingText.innerHTML = 'Searching for your perfect games<span class="loading-dots"></span><br><span class="text-sm text-gray-500">Taking longer than expected, please wait...</span>';
+                    }
+                }
+            }, 10000); // 10 seconds
+
+            try {
+                const response = await fetch(`${API_URL}/api/v1/run/${FLOW_ID}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'ngrok-skip-browser-warning': 'true',
+                        'User-Agent': 'Board-Game-Finder/1.0'
+                    },
+                    body: JSON.stringify({
+                        input_value: query
+                    })
+                });
+
+                clearTimeout(timeoutId);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('API Response:', data);
+                    
+                    const rawMessage = extractMessageFromLangflowResponse(data);
+                    const games = parseGameXFormat(rawMessage);
+                    
+                    displayResults(games);
+                } else {
+                    const errorText = await response.text();
+                    console.error('API Error:', response.status, errorText);
+                    displayError(`API Error: ${response.status} ${response.statusText}`);
+                }
+            } catch (error) {
+                clearTimeout(timeoutId);
+                console.error('Search Error:', error);
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    displayError('Unable to connect to the server. Please check your connection and try again.');
+                } else {
+                    displayError(`Connection Error: ${error.message}`);
+                }
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function displayResults(games) {
+            // Hide loading state
+            loadingState.classList.add('hidden');
+            
+            if (games.length === 0) {
+                gamesContainer.innerHTML = '';
+                noResults.classList.remove('hidden');
+                resultsCount.textContent = 'Found 0 board games that match your criteria';
+                return;
+            }
+
+            noResults.classList.add('hidden');
+            resultsCount.textContent = `Found ${games.length} board game${games.length !== 1 ? 's' : ''} that match your criteria`;
+            
+            // Add fade-in animation to each game card
+            gamesContainer.innerHTML = games.map((game, index) => createGameCard(game, index)).join('');
+            
+            // Add staggered animation to game cards
+            const gameCards = gamesContainer.querySelectorAll('.fade-in');
+            gameCards.forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.1}s`;
+            });
+        }
+
+        function displayError(message) {
+            // Hide loading state
+            loadingState.classList.add('hidden');
+            
+            gamesContainer.innerHTML = `
+                <div class="col-span-full text-center py-12">
+                    <div class="text-red-500 mb-4">
+                        <svg class="h-12 w-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Search Error</h3>
+                        <p class="text-gray-600 mb-4">${message}</p>
+                        <button 
+                            onclick="showSearchPage()"
+                            class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                        >
+                            Try Again
+                        </button>
+                    </div>
+                </div>
+            `;
+            noResults.classList.add('hidden');
+            resultsCount.textContent = 'Search failed';
+        }
+    </script>
+</body>
+</html>
